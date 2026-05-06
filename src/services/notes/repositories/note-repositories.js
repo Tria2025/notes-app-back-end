@@ -1,19 +1,21 @@
 import { Pool } from 'pg';
 import { nanoid } from 'nanoid';
+import NotFoundError from '../../../exceptions/not-found-error.js';
+import AuthorizationError from '../../../exceptions/authorization-error.js';
 
 class NoteRepositories {
   constructor() {
     this.pool = new Pool();
   }
 
-  async createNote({ title, body, tags }) {
+  async createNote({ title, body, tags, owner }) {
     const id = nanoid(16);
     const createdAt = new Date().toISOString();
     const updatedAt = createdAt;
 
     const query = {
-      text: 'INSERT INTO notes(id, title, body, tags, created_at, updated_at) VALUES($1, $2, $3, $4, $5, $6) RETURNING id, title, body, tags, created_at, updated_at',
-      values: [id, title, body, tags, createdAt, updatedAt],
+      text: 'INSERT INTO notes(id, title, body, tags, created_at, updated_at, owner) VALUES($1, $2, $3, $4, $5, $6, $7) RETURNING id, title, body, tags, created_at, updated_at',
+      values: [id, title, body, tags, createdAt, updatedAt, owner],
     };
 
     const result = await this.pool.query(query);
@@ -21,8 +23,14 @@ class NoteRepositories {
     return result.rows[0];
   }
 
-  async getNotes() {
-    const result = await this.pool.query('SELECT * FROM notes');
+  async getNotes(owner) {
+    const query = {
+      text: 'SELECT * FROM notes WHERE owner = $1',
+      values: [owner],
+    };
+
+    const result = await this.pool.query(query);
+
     return result.rows;
   }
 
@@ -34,18 +42,48 @@ class NoteRepositories {
 
     const result = await this.pool.query(query);
 
+    if (!result.rows.length) {
+      throw new NotFoundError('Catatan tidak ditemukan');
+    }
+
     return result.rows[0];
+  }
+
+  async verifyNoteOwner(id, owner) {
+    const query = {
+      text: 'SELECT * FROM notes WHERE id = $1',
+      values: [id],
+    };
+
+    const result = await this.pool.query(query);
+
+    // kalau note tidak ada → throw 404
+    if (!result.rows.length) {
+      throw new NotFoundError('Catatan tidak ditemukan');
+    }
+
+    const note = result.rows[0];
+    // kalau bukan owner → throw 403
+    if (note.owner !== owner) {
+      throw new AuthorizationError('Anda tidak berhak mengakses resource ini');
+    }
+
+    return note;
   }
 
   async editNote({ id, title, body, tags }) {
     const updatedAt = new Date().toISOString();
 
     const query = {
-      text: 'UPDATE notes SET title = $1, body = $2, tags = $3, updated_at = $4 WHERE id = $5 RETURNING id, title, body, tags, created_at, updated_at',
+      text: 'UPDATE notes SET title = $1, body = $2, tags = $3, updated_at = $4 WHERE id = $5 RETURNING id, title, body, tags, created_at, updated_at, owner',
       values: [title, body, tags, updatedAt, id],
     };
 
     const result = await this.pool.query(query);
+
+    if (!result.rows.length) {
+      return null;
+    }
 
     return result.rows[0];
   }
@@ -57,6 +95,10 @@ class NoteRepositories {
     };
 
     const result = await this.pool.query(query);
+
+    if (!result.rows.length) {
+      return null;
+    }
 
     return result.rows[0].id;
   }
