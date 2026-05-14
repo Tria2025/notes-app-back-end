@@ -1,9 +1,13 @@
-const response = (res, statusCode, message, data = null) => {
-  return res.status(statusCode).json({
-    status: statusCode >= 400 ? 'fail' : 'success',
-    message,
-    data,
-  });
+const response = (res, statusCode, message, data) => {
+  return res
+    .status(statusCode)
+    .json({
+      code: statusCode,
+      status: statusCode < 400 ? 'success' : 'fail',
+      message,
+      data,
+    })
+    .end();
 };
 
 export default response;

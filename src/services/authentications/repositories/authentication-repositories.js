@@ -1,8 +1,9 @@
 import { Pool } from 'pg';
+import InvariantError from '../../../exceptions/invariant-error.js';
 
 class AuthenticationRepositories {
   constructor() {
-    this.pool = new Pool();
+    this._pool = new Pool();
   }
 
   async addRefreshToken(token) {
@@ -11,16 +12,7 @@ class AuthenticationRepositories {
       values: [token],
     };
 
-    await this.pool.query(query);
-  }
-
-  async deleteRefreshToken(token) {
-    const query = {
-      text: 'DELETE FROM authentications WHERE token = $1',
-      values: [token],
-    };
-
-    await this.pool.query(query);
+    await this._pool.query(query);
   }
 
   async verifyRefreshToken(token) {
@@ -29,12 +21,20 @@ class AuthenticationRepositories {
       values: [token],
     };
 
-    const result = await this.pool.query(query);
-    if (!result.rows.length) {
-      return false;
-    }
+    const result = await this._pool.query(query);
 
-    return result.rows[0];
+    if (!result.rows.length) {
+      throw new InvariantError('Refresh token tidak valid');
+    }
+  }
+
+  async deleteRefreshToken(token) {
+    const query = {
+      text: 'DELETE FROM authentications WHERE token = $1',
+      values: [token],
+    };
+
+    await this._pool.query(query);
   }
 }
 

@@ -1,17 +1,15 @@
-import express from 'express';
-import {
-  createNote, getNotes, getNoteById, editNoteById, deleteNoteById
-} from '../controller/note-controller.js';
-import { validate, validateQuery } from '../../../middlewares/validate.js';
-import { notePayloadSchema, noteQuerySchema } from '../../../services/notes/validator/schema.js';
+import { Router } from 'express';
+import { createNote, getNotes, getNoteById, editNote, deleteNote } from '../controllers/note-controller.js';
+import validate from '../../../middlewares/validate.js';
 import authenticateToken from '../../../middlewares/auth.js';
+import { notePayloadSchema } from '../../../services/notes/validator/schema.js';
 
-const router = express.Router();
+const router = Router();
 
-router.post('/notes', authenticateToken, validate(notePayloadSchema), createNote);
-router.get('/notes', authenticateToken, validateQuery(noteQuerySchema), getNotes);
-router.get('/notes/:id', authenticateToken, getNoteById);
-router.put('/notes/:id', authenticateToken, validate(notePayloadSchema), editNoteById);
-router.delete('/notes/:id', authenticateToken, deleteNoteById);
+router.post('/', authenticateToken, validate(notePayloadSchema), createNote);
+router.get('/', authenticateToken, getNotes);
+router.get('/:id', authenticateToken, getNoteById);
+router.put('/:id', authenticateToken, validate(notePayloadSchema), editNote);
+router.delete('/:id', authenticateToken, deleteNote);
 
 export default router;

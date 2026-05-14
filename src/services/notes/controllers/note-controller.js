@@ -1,13 +1,12 @@
 import NoteRepositories from '../repositories/note-repositories.js';
-import { InvariantError, NotFoundError } from '../../../exceptions/index.js';
 import response from '../../../utils/response.js';
+import InvariantError from '../../../exceptions/invariant-error.js';
+import NotFoundError from '../../../exceptions/not-found-error.js';
 import AuthorizationError from '../../../exceptions/authorization-error.js';
 
 export const createNote = async (req, res, next) => {
   const { title, body, tags } = req.validated;
   const { id: owner } = req.user;
-
-  console.log('OWNER SAAT CREATE:', owner);
 
   const note = await NoteRepositories.createNote({
     title,
@@ -28,23 +27,33 @@ export const createNote = async (req, res, next) => {
 export const getNotes = async (req, res) => {
   const { id: owner } = req.user;
   const notes = await NoteRepositories.getNotes(owner);
-  return response(res, 200, 'Catatan sukses ditampilkan', { notes });
+  return response(res, 200, 'Catatan sukses ditampilkan', {
+    notes,
+  });
 };
 
 export const getNoteById = async (req, res, next) => {
   const { id } = req.params;
-  const { id: owner } = req.user;
+  const { id: userId } = req.user;
 
-  await NoteRepositories.verifyNoteOwner(id, owner);
+  const noteExists = await NoteRepositories.getNoteById(id);
 
-  const note = await NoteRepositories.getNoteById(id);
+  if (!noteExists) {
+    return next(new NotFoundError('Catatan tidak ditemukan'));
+  }
+
+  const hasAccess = await NoteRepositories.verifyNoteAccess(id, userId);
+
+  if (!hasAccess) {
+    return next(new AuthorizationError('Anda tidak berhak mengakses resource ini'));
+  }
 
   return response(res, 200, 'Catatan sukses ditampilkan', {
-    note,
+    note: noteExists,
   });
 };
 
-export const editNoteById = async (req, res, next) => {
+export const editNote = async (req, res, next) => {
   const { id } = req.params;
   const {
     title,
@@ -52,9 +61,19 @@ export const editNoteById = async (req, res, next) => {
     tags
   } = req.validated;
 
-  const { id: owner } = req.user;
+  const { id: userId } = req.user;
 
-  await NoteRepositories.verifyNoteOwner(id, owner);
+  const noteExists = await NoteRepositories.getNoteById(id);
+
+  if (!noteExists) {
+    return next(new NotFoundError('Catatan tidak ditemukan'));
+  }
+
+  const hasAccess = await NoteRepositories.verifyNoteAccess(id, userId);
+
+  if (!hasAccess) {
+    return next(new AuthorizationError('Anda tidak berhak mengakses resource ini'));
+  }
 
   const note = await NoteRepositories.editNote({
     id,
@@ -67,16 +86,18 @@ export const editNoteById = async (req, res, next) => {
     return next(new NotFoundError('Catatan tidak ditemukan'));
   }
 
-  return response(res, 200, 'Catatan berhasil diperbarui', {
-    note
-  });
+  return response(res, 200, 'Catatan berhasil diperbarui', note);
 };
 
-export const deleteNoteById = async (req, res, next) => {
+export const deleteNote = async (req, res, next) => {
   const { id } = req.params;
   const { id: owner } = req.user;
 
-  await NoteRepositories.verifyNoteOwner(id, owner);
+  const isOwner = await NoteRepositories.verifyNoteOwner(id, owner);
+
+  if (!isOwner) {
+    return next(new AuthorizationError('Anda tidak berhak mengakses resource ini'));
+  }
 
   const deletedNote = await NoteRepositories.deleteNote(id);
 
@@ -84,7 +105,5 @@ export const deleteNoteById = async (req, res, next) => {
     return next(new NotFoundError('Catatan tidak ditemukan'));
   }
 
-  return response(res, 200, 'Catatan berhasil dihapus', {
-    deletedNoteId: deletedNote,
-  });
+  return response(res, 200, 'Catatan berhasil dihapus', deletedNote);
 };
